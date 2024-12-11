@@ -8,6 +8,7 @@ import { corsMiddleware } from '@/middleware/cors';
 import { rateLimiter } from '@/middleware/rate-limit';
 import { requestSizeLimiter } from '@/middleware/rate-limit';
 import { requestTimeout } from '@/middleware/rate-limit';
+import { timeoutHandler } from '@/middleware/timeout';
 
 export function createExpressApp() {
   const app: Express = express();
@@ -41,6 +42,17 @@ export function createExpressApp() {
     res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
     next();
   });
+
+  // Add timeout handling with custom configurations
+  app.use(timeoutHandler({
+    timeout: 30000, // Global 30s timeout
+    enableHeader: true,
+    operations: {
+      'file-upload': 60000,     // 60s for file uploads
+      'report-generation': 45000, // 45s for report generation
+      'quick-query': 5000       // 5s for quick queries
+    }
+  }));
   
   return app;
 }

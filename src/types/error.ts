@@ -38,3 +38,15 @@ export class ForbiddenError extends AppError {
     super(message, 403, 'forbidden', true);
   }
 }
+
+export class TimeoutError extends AppError {
+  constructor(
+    message: string = 'Request timeout',
+    public operationName?: string,
+    public timeoutMs?: number
+  ) {
+    super(message, 408, 'timeout_error', true);
+    this.operationName = operationName;
+    this.timeoutMs = timeoutMs;
+  }
+}

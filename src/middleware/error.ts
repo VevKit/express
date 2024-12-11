@@ -1,10 +1,10 @@
 import { Request, Response, NextFunction } from 'express';
 import { ZodError } from 'zod';
-import { AppError, ValidationError } from '@/types/error';
+import { AppError, TimeoutError, ValidationError } from '@/types/error';
 import { logger } from '@/utils/logger';
 import { env } from '@/config/env';
 
-function handleZodError(err: ZodError) {
+function handleZodError(err: ZodError): ValidationError {
   const errors = err.errors.map(e => ({
     field: e.path.join('.'),
     message: e.message
@@ -23,7 +23,7 @@ function handleDuplicateFieldsDB(err: any) {
 
 export function errorHandler(
   err: Error,
-  _req: Request,
+  req: Request,
   res: Response,
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   _next: NextFunction
@@ -32,26 +32,43 @@ export function errorHandler(
 
   // Transform known errors
   if (err instanceof ZodError) {
-    error = handleZodError(err);
-  }
-  // Handle MongoDB duplicate key error (example)
-  if (err.name === 'MongoServerError' && (err as any).code === 11000) {
-    error = handleDuplicateFieldsDB(err as any);
+    const zodError = handleZodError(err);
+    logger.warning('Validation error', {
+      errors: zodError.errors
+    });
+    res.status(zodError.statusCode).json({
+      status: zodError.status,
+      message: zodError.message,
+      errors: zodError.errors
+    });
   }
 
-  // Log error
+  if (error instanceof TimeoutError) {
+    logger.warning('Request timeout occurred', {
+      path: req.path,
+      method: req.method,
+      operationName: error.operationName,
+      timeoutMs: error.timeoutMs
+    });
+
+    res.status(error.statusCode).json({
+      status: error.status,
+      message: error.message,
+      ...(env.nodeEnv === 'development' && {
+        operationName: error.operationName,
+        timeoutMs: error.timeoutMs
+      })
+    });
+  }
+
+  // Send response
   if (error instanceof AppError) {
     logger.warning(error.message, {
       statusCode: error.statusCode,
       status: error.status,
       ...(error instanceof ValidationError && { errors: error.errors })
     });
-  } else {
-    logger.error('Unhandled error', error);
-  }
-
-  // Send response
-  if (error instanceof AppError) {
+  
     res.status(error.statusCode).json({
       status: error.status,
       message: error.message,
