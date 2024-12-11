@@ -1,6 +1,11 @@
 import { Request, Response } from 'express';
 import { logger } from '@/utils/logger';
 import type { CreateUserInput } from './schema';
+import { ValidationError } from '@/types/error';
+
+async function userExists(_email: string): Promise<boolean> {
+  return false; // Mock implementation
+}
 
 export async function createUser(
   req: Request<{}, {}, CreateUserInput>,
@@ -13,19 +18,26 @@ export async function createUser(
       email: userData.email,
       username: userData.username 
     });
+
+    if (await userExists(userData.email)) {
+      throw new ValidationError('User validation failed', [{
+        field: 'email',
+        message: 'Email already registered'
+      }]);
+    }
     
-    // Skip semantics (check if user exists, hash password, save to database, etc.) and mock a response
+    // Skip other semantics (hash password, save to database, etc.) and mock a response
+    const user = {
+      id: 'mock-id-' + Date.now(),
+      ...userData,
+      createdAt: new Date().toISOString()
+    };
+
+    logger.info('User created successfully', { userId: user.id });
+    
     res.status(201).json({
       status: 'success',
-      data: {
-        user: {
-          id: 'mock-id-' + Date.now(),
-          email: userData.email,
-          username: userData.username,
-          name: userData.name,
-          createdAt: new Date().toISOString()
-        }
-      }
+      data: { user }
     });
   } catch (error) {
     logger.error('Error creating user', { error });
